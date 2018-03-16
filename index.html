@@ -1,0 +1,114 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="webR2sync">
+    <meta name="author" content="xiaohe">
+    <link rel="icon" href="favicon.ico">
+
+    <title>ConflictReaper</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom styles for this template -->
+    <link href="sticky-footer.css" rel="stylesheet">
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="https://cdn.bootcss.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+      <script src="https://cdn.bootcss.com/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+  </head>
+
+  <body>
+
+    <!-- Begin page content -->
+      <div class="container">
+          <div class="page-header">
+              <h1>Enabling Conflict-free Collaborations with Cloud Storage Services</h1>
+          </div>
+          <p class="lead">
+              <a target="_blank" href="https://github.com/ConflictReaper/ConflictReaper">This project</a> strives towards conflict-free collaborations with cloud storage services.
+          </p>
+          <!--<h2>Repositories</h2>-->
+          <h3>
+              Collaborations with cloud storage service
+          </h3>
+          <p>
+              Cloud storage has become a basic infrastructure to provide storage services with high elasticity, reliability, availability, and security guarantees.
+          </p>
+          <p>
+              In addition, some services (e.g., Dropbox) offer more advanced functions such as collaborative file editing (abbreviated as collaboration) where multiple users can edit a shared file via the cloud storage.
+          </p>
+          <p>
+              Specifically, in Dropbox, every user owns a designated local folder (called a "sync folder") in which every data update is automatically noticed and synced to the cloud by the Dropbox client software.
+          </p>
+          <p>
+              Afterwards, the data update is automatically propagated by the cloud to the sync folder(s) of the other user(s) who share the file (called collaborators).
+          </p>
+          <p>
+              When everything goes smooth, using Dropbox for collaborations is much easier than using classic collaboration tools like SVN and Git, since the users do not need to understand and manipulate the complex collaboration primitives (e.g., pull, push, comment, and clone).
+          </p>
+          <p>
+              This greatly facilitates those computer non-professionals in online collaborations.
+          </p>
+          <img class="img-responsive center-block" width="600px" alt="architecture" src="./arch.png">
+          <p style="text-align:center">
+              Figure 1: Architectural overview of Dropbox and ConflictReaper on handling cross-user collaborations.
+          </p>
+
+          <h3>
+              The conflict issues
+          </h3>
+          <p>
+              Through real-word measurement study, we find the two root causes of collaboration conflicts in Dropbox:
+          </p>
+          <p>
+              1) Unlike SVN and Git, Dropbox never locks an edited file to avoid conflicts during collaboration;
+          </p>
+          <p>
+              2) Dropbox only guarantees eventual data consistency among the collaborators, thus significantly aggravating the probability of conflicts.
+          </p>
+          <img class="img-responsive center-block" width="600px" alt="the conflict issues" src="./conf_meas.png">
+          <p style="text-align:center">
+              Figure 2: Time sequence diagram of (a) a typical simultaneous edit and (b) a typical alternate edit.
+          </p>
+
+          <h3>
+              ConflictReaper design
+          </h3>
+          <p>
+              We design the ConflictReaper to enable conflict-free collaborations with cloud storage services.
+          </p>
+          <p>
+              The design of ConflictReaper is empowered by three key findings and measures.
+          </p>
+          <p>
+              1) Although the end-to-end sync delay is unpredictable due to eventual consistency, we can always track the latest version of an edited file by actively resorting to the cloud via certain web APIs.
+          </p>
+          <p>
+              2) Although all application-level data is encrypted in Dropbox, we can roughly deduce the sync status from traffic statistics.
+          </p>
+          <p>
+              3) By applying a couple of useful mechanisms (e.g., distributed architecture and data lock) inspired from Git, we can effectively and efficiently avoid collaboration conflicts.
+          </p>
+          <img class="img-responsive center-block" width="600px" alt="ConflictReaper design" src="./module.png">
+          <p style="text-align:center">
+              Figure 3: System structure of ConflictReaper with modularized components.
+          </p>
+
+      </div>
+
+    <!--<footer class="footer">-->
+      <!--<div class="container">-->
+        <!--<p class="text-muted">Place sticky footer content here.</p>-->
+      <!--</div>-->
+    <!--</footer>-->
+    <script src="http://cdn.bootcss.com/jquery/2.2.4/jquery.js"></script>
+
+	<script src="http://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  </body>
+</html>
