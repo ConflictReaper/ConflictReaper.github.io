@@ -28,78 +28,49 @@
     <!-- Begin page content -->
       <div class="container">
           <div class="page-header">
-              <h1>Enabling Conflict-free Collaborations with Cloud Storage Services</h1>
+              <h1>Understanding and Improving Collaboration in Cloud Storage Services</h1>
           </div>
           <p class="lead">
-              <a target="_blank" href="https://github.com/ConflictReaper/ConflictReaper">This project</a> strives towards conflict-free collaborations with cloud storage services.
+			  Source code of <a target="_blank" href="https://github.com/ConflictReaper/ConflictReaper">ConfilctReaper</a>
           </p>
           <!--<h2>Repositories</h2>-->
           <h3>
-              Collaborations with cloud storage service
+              Summary of Our Findings
           </h3>
-          <p>
-              Cloud storage has become a basic infrastructure to provide storage services with high elasticity, reliability, availability, and security guarantees.
-          </p>
-          <p>
-              In addition, some services (e.g., Dropbox) offer more advanced functions such as collaborative file editing (abbreviated as collaboration) where multiple users can edit a shared file via the cloud storage.
-          </p>
-          <p>
-              Specifically, in Dropbox, every user owns a designated local folder (called a "sync folder") in which every data update is automatically noticed and synced to the cloud by the Dropbox client software.
-          </p>
-          <p>
-              Afterwards, the data update is automatically propagated by the cloud to the sync folder(s) of the other user(s) who share the file (called collaborators).
-          </p>
-          <p>
-              When everything goes smooth, using Dropbox for collaborations is much easier than using classic collaboration tools like SVN and Git, since the users do not need to understand and manipulate the complex collaboration primitives (e.g., pull, push, comment, and clone).
-          </p>
-          <p>
-              This greatly facilitates those computer non-professionals in online collaborations.
-          </p>
-          <img class="img-responsive center-block" width="600px" alt="architecture" src="./arch.png">
+          <ul>
+            <li>
+				Five out of the eight cloud storage services do not use any form of locking to prevent conflicts. The other three services use coarse-grained file-level locks (Seafile only supports it for Microsoft Office files). None of these services support line-level locks (commonly in version control systems). Moreover, we find that the locking is done often too early or too late.
+			</li>
+			<li>
+				Resolving conflicts is painful. Although resolving conflicts is seldom considered pleasant, the current practices of existing cloud storage services make it worse. Specifically, Google Drive only keeps the latest version (based on server-side timestamps) of all the conflicted versions. iCloud Drive asks users to choose one version from all the conflicted versions. The other six services distribute all the conflicted versions to all the collaborators, which may potentially cause a merging storm.
+			</li>
+			<li>
+				Many of the undesired experiences are caused by the poor implementation of message queues at the cloud side. We observe that the queuing time of five cloud storage services could be excessive in certain scenarios, indicating that they are using a shared queue. When the queue is overloaded, the file synchronization time becomes unpredictable. To make the matter worse, the time order between file updates could be broken.
+			</li>
+			<li>
+				Combining full-file sync and delta sync to update different sizes of files outperforms a single method. We observe that NutStore adopts full-file sync for small (<= 64 KB) files and delta sync for larger files, which outperforms other services using either full-file sync or delta sync.
+			</li>
+          </ul>
+          <img class="img-responsive center-block" width="600px" alt="architecture" src="./arch.jpg">
           <p style="text-align:center">
-              Figure 1: Architectural overview of Dropbox and ConflictReaper on handling cross-user collaborations.
+              Figure 1: The workflow and system components for supporting collaborative file editing in cloud storage services. The solid boxes denote the common components among all the studied services, whereas the dotted boxes denote components in specific services.
           </p>
 
           <h3>
-              The conflict issues
+              Optimization
           </h3>
-          <p>
-              Through real-word measurement study, we find the two root causes of collaboration conflicts in Dropbox:
+		  <ul>
+            <li>
+				A file-level editing lock based on file editing status is a better option than the hard-coded locks used by some of the existing cloud storage services. The editing lock automatically takes effect and notifies users when a shared file is being edited by collaborators. It prevents the problems of “too early” or “too late” locking. Note that the editing lock is in-situ during file editing, and is fundamentally different from notifications postmortem to file changes.
+			</li>
+			<li>
+				The client should actively fetch the latest version of a collaborative file from the cloud before editing. As this fetch is critical in avoiding conflicts, it should be differently treated with QoS guarantee (e.g., implemented with a dedicated queue). Most of theWeb APIs provided by the cloud storage services can be leveraged to achieve this.
+			</li>
+          </ul>
+          
+		  <p class="lead">
+			  We implement the <a target="_blank" href="https://github.com/ConflictReaper/ConflictReaper">ConfilctReaper</a> tool for Dropbox to embody the above optimizations and evaluate their performance.
           </p>
-          <p>
-              1) Unlike SVN and Git, Dropbox never locks an edited file to avoid conflicts during collaboration;
-          </p>
-          <p>
-              2) Dropbox only guarantees eventual data consistency among the collaborators, thus significantly aggravating the probability of conflicts.
-          </p>
-          <img class="img-responsive center-block" width="600px" alt="the conflict issues" src="./conf_meas.png">
-          <p style="text-align:center">
-              Figure 2: Time sequence diagram of (a) a typical simultaneous edit and (b) a typical alternate edit.
-          </p>
-
-          <h3>
-              ConflictReaper design
-          </h3>
-          <p>
-              We design the ConflictReaper to enable conflict-free collaborations with cloud storage services.
-          </p>
-          <p>
-              The design of ConflictReaper is empowered by three key findings and measures.
-          </p>
-          <p>
-              1) Although the end-to-end sync delay is unpredictable due to eventual consistency, we can always track the latest version of an edited file by actively resorting to the cloud via certain web APIs.
-          </p>
-          <p>
-              2) Although all application-level data is encrypted in Dropbox, we can roughly deduce the sync status from traffic statistics.
-          </p>
-          <p>
-              3) By applying a couple of useful mechanisms (e.g., distributed architecture and data lock) inspired from Git, we can effectively and efficiently avoid collaboration conflicts.
-          </p>
-          <img class="img-responsive center-block" width="600px" alt="ConflictReaper design" src="./module.png">
-          <p style="text-align:center">
-              Figure 3: System structure of ConflictReaper with modularized components.
-          </p>
-
       </div>
 
     <!--<footer class="footer">-->
