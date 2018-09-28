@@ -21,64 +21,219 @@
       <script src="https://cdn.bootcss.com/html5shiv/3.7.3/html5shiv.min.js"></script>
       <script src="https://cdn.bootcss.com/respond.js/1.4.2/respond.min.js"></script>
     <![endif]-->
+	<style type="text/css">
+        table{
+            border-top:2px solid;
+            border-bottom:2px solid;
+        }
+        td{
+            padding-left: 5px;
+			padding-right: 5px;
+            vertical-align: center;
+			border-top:1px solid;
+			border-bottom:1px solid;
+        }
+		.tdleft{
+			padding-left: 5px;
+			padding-right: 5px;
+            vertical-align: center;
+			border-top:1px solid;
+			border-bottom:1px solid;
+			border-left:1px solid;
+		}
+		li{
+			line-height: 2em;
+		}
+    </style>
   </head>
 
   <body>
 
     <!-- Begin page content -->
-      <div class="container">
-          <div class="page-header">
-              <h1>Understanding and Improving Collaboration in Cloud Storage Services</h1>
-          </div>
-          <p class="lead">
-			  Source code of <a target="_blank" href="https://github.com/ConflictReaper/ConflictReaper">ConfilctReaper</a>
-          </p>
-          <!--<h2>Repositories</h2>-->
-          <h3>
-              Summary of Our Findings
-          </h3>
-          <ul>
-            <li>
-				Five out of the eight cloud storage services do not use any form of locking to prevent conflicts. The other three services use coarse-grained file-level locks (Seafile only supports it for Microsoft Office files). None of these services support line-level locks (commonly in version control systems). Moreover, we find that the locking is done often too early or too late.
-			</li>
-			<li>
-				Resolving conflicts is painful. Although resolving conflicts is seldom considered pleasant, the current practices of existing cloud storage services make it worse. Specifically, Google Drive only keeps the latest version (based on server-side timestamps) of all the conflicted versions. iCloud Drive asks users to choose one version from all the conflicted versions. The other six services distribute all the conflicted versions to all the collaborators, which may potentially cause a merging storm.
-			</li>
-			<li>
-				Many of the undesired experiences are caused by the poor implementation of message queues at the cloud side. We observe that the queuing time of five cloud storage services could be excessive in certain scenarios, indicating that they are using a shared queue. When the queue is overloaded, the file synchronization time becomes unpredictable. To make the matter worse, the time order between file updates could be broken.
-			</li>
-			<li>
-				Combining full-file sync and delta sync to update different sizes of files outperforms a single method. We observe that NutStore adopts full-file sync for small (<= 64 KB) files and delta sync for larger files, which outperforms other services using either full-file sync or delta sync.
-			</li>
-          </ul>
-          <img class="img-responsive center-block" width="600px" alt="architecture" src="./arch.jpg">
-          <p style="text-align:center">
-              Figure 1: The workflow and system components for supporting collaborative file editing in cloud storage services. The solid boxes denote the common components among all the studied services, whereas the dotted boxes denote components in specific services.
-          </p>
+		<div class="container">
+			<div class="page-header">
+				<h1>Understanding and Improving Collaboration in Cloud Storage Services</h1>
+			</div>
+			<p class="lead">
+				This project strives towards understanding and improving collaboration in cloud storage services.
+			</p>
+			<!--<h2>Repositories</h2>-->
+			<h2>
+				Background
+			</h2>
+			<p style="line-height: 2em; text-indent: 2em">
+				Recently, cloud storage services provide the users with advanced functions of collaborative file editing -- a shared file is simultaneously edited by multiple collaborators.
+				For transparency and user-friendliness, today’s cloud storage services do not ask users to use version control systems; instead, they implement their own heuristics for dealing with conflicts.
+				The transparency, however, is also a weakness, as some existing practices may lead to unexpected and undesired experiences, such as wired conflicts (listed in Table 1). 
+				In this project, we attempt to investigate the underlying reasons for these anomalies and propose practical solutions.
+			</p>
+			<!--<p>
+				The functionality of cloud storage services has evolved from simple file backup to online collaboration.
+			</p>
+			<p>
+				For the ease of use, file collaboration is made transparent by almost all the cloud storage services today through automatic file synchronization.
+			</p>
+			<p>
+				However, collaboration inevitably introduces conflicts -- unexpected and even mysterious events.
+			</p>-->
+			<table align="center">
+				<tr>
+					<td>
+						<div style="background:#cccccc"><b>Pattern 1: Losing updates</b></div>
+						Alice is editing a file. Suddenly, her file is overwritten<br>
+						by a new version from her collaborator, Bob. Once this<br>
+						happens, Alice loses her edits on the older version.<br>
+					</td>
+					<td class="tdleft">
+						<br>
+						All studied<br>
+						services<br>
+						<br>
+					</td>
+				</tr>
+				<tr>
+					<td>
+						<div style="background:#cccccc"><b>Pattern 2: Conflicts despite coordination</b></div>
+						Alice coordinates her edits with Bob through emails to<br>
+						avoid conflicts by enforcing a sequential order. Every<br>
+						edit is saved instantly. Even so, conflicts still occur.<br>
+					</td>
+					<td class="tdleft">
+						<br>
+						All studied<br>
+						services<br>
+						<br>
+					</td>
+				</tr>
+				<tr>
+					<td>
+						<div style="background:#cccccc"><b>Pattern 3: Excessively long sync duration</b></div>
+						Alice edits a shared file and confirms that the edit has<br>
+						been synced to the cloud. However, Bob does not<br>
+						receive the updates for an excessively long duration.<br>
+					</td>
+					<td class="tdleft">
+						Dropbox,<br>
+						OneDrive,<br>
+						SugarSync<br>
+						Seafile, Box<br>
+					</td>
+				</tr>
+				<tr>
+					<td>
+						<div style="background:#cccccc"><b>Pattern 4: Blocking collaborators by opening files</b></div>
+						Alice simply opens a shared Microsoft Office file with-<br>
+						out making any edits. This mysteriously disables<br>
+						Bob's editing the file.<br>
+					</td>
+					<td class="tdleft">
+						Seafile<br>
+						(only for<br>
+						Microsoft<br>
+						Office files)<br>
+					</td>
+				</tr>
+			</table>
+			<p></p>
+			<p style="text-align:center">
+				Table 1: Common patterns of unexpected and undesired collaborative experiences.
+			</p>
+			
+			<!--<p>
+				To uncover the root causes of these unexpected, counterintuitive patterns, we conduct a comparative measurement study of eight mainstream cloud storage services: Dropbox, OneDrive, Google Drive, iCloud Drive, Box, SugarSync, Seafile, and NutStore.
+			</p>
+			<p>
+				Our study leads to a number of findings that explain these unexpected and undesired patterns described in Table 1.
+			</p>
+			<p>
+				6
+			</p>
+			<p>
+				7
+			</p>-->
 
-          <h3>
-              Optimization
-          </h3>
-		  <ul>
-            <li>
-				A file-level editing lock based on file editing status is a better option than the hard-coded locks used by some of the existing cloud storage services. The editing lock automatically takes effect and notifies users when a shared file is being edited by collaborators. It prevents the problems of “too early” or “too late” locking. Note that the editing lock is in-situ during file editing, and is fundamentally different from notifications postmortem to file changes.
-			</li>
-			<li>
-				The client should actively fetch the latest version of a collaborative file from the cloud before editing. As this fetch is critical in avoiding conflicts, it should be differently treated with QoS guarantee (e.g., implemented with a dedicated queue). Most of theWeb APIs provided by the cloud storage services can be leveraged to achieve this.
-			</li>
-          </ul>
-          
-		  <p class="lead">
-			  We implement the <a target="_blank" href="https://github.com/ConflictReaper/ConflictReaper">ConfilctReaper</a> tool for Dropbox to embody the above optimizations and evaluate their performance.
-          </p>
-      </div>
+			
+		  
+			<h2>
+				Summary of Our Findings
+			</h2>
+			<p style="line-height: 2em; text-indent: 2em">
+				Our study leads to a number of findings that explain the unexpected and undesired patterns described in Table 1.
+			</p>
+			<ul>
+				<li>
+					Majority of the mainstream cloud storage services do not use any form of locking to prevent conflicts. 
+					<!--The other three services use coarse-grained file-level locks (Seafile only supports it for Microsoft Office files). 
+					None of these services support line-level locks (commonly in version control systems). 
+					Moreover, we find that the locking is done often too early or too late.-->
+				</li>
+				<li>
+					Resolving conflicts is painful. 
+					<!--Although resolving conflicts is seldom considered pleasant, the current practices of existing cloud storage services make it worse. 
+					Specifically, Google Drive only keeps the latest version (based on server-side timestamps) of all the conflicted versions. 
+					iCloud Drive asks users to choose one version from all the conflicted versions. 
+					The other six services distribute all the conflicted versions to all the collaborators, which may potentially cause a merging storm.-->
+				</li>
+				<li>
+					Many of the undesired experiences are caused by the poor implementation of message queues at the cloud side. 
+					<!--We observe that the queuing time of five cloud storage services could be excessive in certain scenarios, indicating that they are using a shared queue. 
+					When the queue is overloaded, the file synchronization time becomes unpredictable. 
+					To make the matter worse, the time order between file updates could be broken.-->
+				</li>
+				<li>
+					Combining full-file sync and delta sync to update different sizes of files outperforms a single method. 
+					<!--We observe that NutStore adopts full-file sync for small (<= 64 KB) files and delta sync for larger files, which outperforms other services using either full-file sync or delta sync.-->
+				</li>
+			</ul>
+			
+			<img class="img-responsive center-block" width="600px" alt="architecture" src="./arch.jpg">
+			<p></p>
+			<p style="text-align:center">
+				Figure 1: The workflow and system components for supporting collaborative file editing in cloud storage services. The solid boxes denote the common components among all the studied services, whereas the dotted boxes denote components in specific services.
+			</p>
 
-    <!--<footer class="footer">-->
-      <!--<div class="container">-->
-        <!--<p class="text-muted">Place sticky footer content here.</p>-->
-      <!--</div>-->
-    <!--</footer>-->
-    <script src="http://cdn.bootcss.com/jquery/2.2.4/jquery.js"></script>
+			<h2>
+				Optimizations
+			</h2>
+			<p style="line-height: 2em; text-indent: 2em">
+				Driven by the findings, we propose two optimizations which are fully compatible with the workflow and system architecture of existing cloud storage services (cf. Figure 1):
+			</p>
+			<ul>
+				<li>
+					A file-level editing lock based on file editing status is a better option than the hard-coded locks used by some of the existing cloud storage services. 
+					<!--The editing lock automatically takes effect and notifies users when a shared file is being edited by collaborators. 
+					It prevents the problems of “too early” or “too late” locking. 
+					Note that the editing lock is in-situ during file editing, and is fundamentally different from notifications postmortem to file changes.-->
+				</li>
+				<li>
+					The client should actively fetch the latest version of a collaborative file from the cloud before editing. 
+					<!--As this fetch is critical in avoiding conflicts, it should be differently treated with QoS guarantee (e.g., implemented with a dedicated queue). 
+					Most of the Web APIs provided by the cloud storage services can be leveraged to achieve this.-->
+				</li>
+			</ul>
+			
+			<h2>
+				Enabling conflict-free collaborations with <a target="_blank" href="https://github.com/ConflictReaper/ConflictReaper">ConfilctReaper</a>
+			</h2>
+			<p style="line-height: 2em; text-indent: 2em">
+				Integrated aforementioned optimizations, we build ConflictReaper to assist existing cloud storage services in a fully transparent and automatic manner.
+				ConflictReaper is agnostic to the cloud-side implementation and is generically applicable to existing cloud storage services.
+				We implement and issue the Windows version of ConflictReaper (with architecture in Figure 2). 
+				The real-world experiment shows that it prevents 91% conflicts overall.
+			</p>
+			<img class="img-responsive center-block" width="600px" alt="architecture" src="./module.jpg">
+			<p></p>
+			<p style="text-align:center">
+				Figure 2: System structure of ConflictReaper with modularized components.
+			</p>
+		</div>
+
+	<!--<footer class="footer">-->
+		<!--<div class="container">-->
+			<!--<p class="text-muted">Place sticky footer content here.</p>-->
+		<!--</div>-->
+	<!--</footer>-->
+	<script src="http://cdn.bootcss.com/jquery/2.2.4/jquery.js"></script>
 
 	<script src="http://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
   </body>
